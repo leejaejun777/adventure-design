@@ -1,0 +1,110 @@
+#include "WiFiEsp.h"
+
+// 시리얼 포트 1이 없는 경우 2/3 핀에서 시리얼1 에뮬레이션
+#ifndef HAVE_HWSERIAL1
+#include "SoftwareSerial.h"
+SoftwareSerial Serial1(2, 3); // RX, TX
+#endif
+
+const int trigPin = 9;
+const int echoPin = 8;
+
+char ssid[] = "ok";            // 네트워크 SSID (이름)
+char pass[] = "12345678";      // 네트워크 비밀번호
+int status = WL_IDLE_STATUS;   // WiFi 상태
+
+unsigned long lastRequestTime = 0;  // 마지막 요청 시간
+const long requestInterval = 10000; // 요청 간격 (10초)
+
+long distance ;
+
+void setup() {
+  Serial.begin(9600);    // 디버깅을 위한 시리얼 초기화
+  Serial1.begin(9600);   // ESP 모듈을 위한 시리얼 초기화
+  WiFi.init(&Serial1);   // ESP 모듈 초기화
+
+  if (WiFi.status() == WL_NO_SHIELD) {
+    Serial.println("WiFi shield not present");
+    while (true);
+  }
+
+  while (status != WL_CONNECTED) {
+    Serial.print("Attempting to connect to WPA SSID: ");
+    Serial.println(ssid);
+    status = WiFi.begin(ssid, pass);
+    delay(10000);  // 연결 시도 간격
+  }
+
+  Serial.println("You're connected to the network");
+  printWifiStatus();
+
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+}
+
+void loop() {
+    unsigned long currentMillis = millis();
+    long duration;
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  duration = pulseIn(echoPin, HIGH);
+  distance = (duration / 2) / 29.1; // 거리 계산 (단위: cm)
+     Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+
+
+  // 초음파 센서로 거리 측정
+
+
+
+
+  // 서버에 요청 보내기
+  if (currentMillis - lastRequestTime >= requestInterval) {
+    sendToServer();
+    lastRequestTime = currentMillis; // 마지막 요청 시간 업데이트
+  }
+
+  delay(100); // 100ms 대기 후 다시 측정
+}
+
+void sendToServer() {
+  
+  WiFiEspClient client;
+
+  const char* server = "192.168.156.134";
+
+  if (client.connect(server, 80)) {
+    Serial.println("Connected to server");
+    if (distance < 10) {
+      client.println("GET /1 HTTP/1.1");
+    }
+    else {
+      client.println("GET /0 HTTP/1.1");
+    }
+    client.println("Connection: close");
+    client.println(); // 빈 줄 추가
+    client.stop();
+    } 
+    else {
+    Serial.println("Connection to server failed");
+  }
+}
+
+void printWifiStatus() {
+  Serial.print("SSID: ");
+  Serial.println(WiFi.SSID());
+
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+
+  Serial.println();
+  Serial.print("To see this page in action, open a browser to http://");
+  Serial.println(ip);
+  Serial.println();
+}
+
